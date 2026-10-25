@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres:16
+    environment: {POSTGRES_DB: harlem, POSTGRES_USER: harlem, POSTGRES_PASSWORD: harlem}
+    volumes: [pgdata:/var/lib/postgresql/data]
+  web:
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://harlem:harlem@db:5432/harlem
+      MEDIA_ROOT: /app/media
+    volumes: [media:/app/media]
+    ports: ["8000:8000"]
+    depends_on: [db]
+volumes: {pgdata: {}, media: {}}
