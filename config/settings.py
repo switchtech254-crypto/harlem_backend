@@ -5,8 +5,12 @@ from pathlib import Path
 
 import dj_database_url
 from django.core.exceptions import ImproperlyConfigured
+from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+load_dotenv(BASE_DIR / ".env")
+
 TESTING = "test" in sys.argv
 
 
@@ -112,6 +116,28 @@ STORAGES = {
         else "whitenoise.storage.CompressedManifestStaticFilesStorage"
     },
 }
+
+# ---- Media storage ----------------------------------------------------
+# Uploaded images (products, banners, ...) go to Cloudinary when CLOUDINARY_URL is set
+# (format: cloudinary://API_KEY:API_SECRET@CLOUD_NAME). Without it, files are saved to
+# MEDIA_ROOT, which is fine for local development only (Django does not serve /media/
+# when DEBUG is off, and many hosts wipe the disk on every deploy).
+CLOUDINARY_URL = env("CLOUDINARY_URL")
+if CLOUDINARY_URL:
+    # cloudinary_storage must come before staticfiles, cloudinary after it.
+    INSTALLED_APPS.insert(INSTALLED_APPS.index("django.contrib.staticfiles"), "cloudinary_storage")
+    INSTALLED_APPS.insert(INSTALLED_APPS.index("django.contrib.staticfiles") + 1, "cloudinary")
+    STORAGES["default"] = {"BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage"}
+    CLOUDINARY_STORAGE = {"SECURE": True}
+elif not (DEBUG or TESTING):
+    import warnings
+
+    warnings.warn(
+        "CLOUDINARY_URL is not set: uploaded images will be stored on the server's local disk "
+        "and will not be served in production.",
+        RuntimeWarning,
+        stacklevel=1,
+    )
 
 # ---- API --------------------------------------------------------------
 _rate = lambda v: "100000/min" if TESTING else v  # noqa: E731
