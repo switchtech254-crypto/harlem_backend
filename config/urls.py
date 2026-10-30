@@ -8,8 +8,20 @@ admin.site.site_header = "Harlem Store Admin"
 admin.site.site_title = "Harlem Store"
 admin.site.index_title = "Manage the store"
 
+
+from django.http import JsonResponse
+from django.urls import path
+
+def health_check(request):
+    return JsonResponse({
+        "status": "healthy",
+        "service": "django-backend"
+    })
+
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path("health/", health_check, name="health-check"),
+
     path(
         "api/",
         include(
