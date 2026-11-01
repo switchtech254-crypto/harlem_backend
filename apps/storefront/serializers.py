@@ -11,6 +11,7 @@ class ImageMixin:
 
 
 class SiteSettingsSerializer(serializers.ModelSerializer):
+    mpesa_enabled = serializers.SerializerMethodField()
     promo_code = serializers.CharField(source="featured_promo.code", default=None, read_only=True)
     promo_description = serializers.CharField(source="featured_promo.description", default=None, read_only=True)
 
@@ -20,8 +21,13 @@ class SiteSettingsSerializer(serializers.ModelSerializer):
             "store_name", "tagline", "contact_phone", "whatsapp_number", "contact_email", "address",
             "opening_hours", "facebook_url", "instagram_url", "tiktok_url", "delivery_info",
             "announcement_text", "announcement_enabled", "promo_code", "promo_description",
-            "online_ordering_enabled",
+            "online_ordering_enabled", "mpesa_enabled",
         ]
+
+    def get_mpesa_enabled(self, obj):
+        from django.conf import settings
+
+        return bool(settings.MPESA_ENABLED)
 
 
 class HeroSlideSerializer(ImageMixin, serializers.ModelSerializer):

@@ -52,6 +52,46 @@ Docker: `cp .env.example .env && docker compose up --build` (Postgres included).
    for the countdown instead of "end of day"; show the announcement from `settings`.
 6. When ready to take orders online, tick **Online ordering enabled** in *Site settings* and POST the checkout form to `/api/orders/`.
 
+
+## M-Pesa payments (Daraja M-Pesa Express / STK push)
+
+Customers place an order, then tap **Pay with M-Pesa**: the backend sends an STK push, the customer enters their PIN,
+Safaricom calls our callback, and the order is marked **Paid** and **Confirmed** (a `Payment` row with the M-Pesa receipt is created).
+Without credentials the feature is simply off (`/api/settings/` reports `mpesa_enabled: false`).
+
+### Setup (sandbox)
+1. In `.env` set `MPESA_CONSUMER_KEY`, `MPESA_CONSUMER_SECRET`, `MPESA_PASSKEY` (from your Daraja app / Express simulator) and `MPESA_SHORTCODE=174379`.
+2. Generate a callback secret: `python -c "import secrets;print(secrets.token_urlsafe(32))"` -> `MPESA_CALLBACK_SECRET`.
+3. Safaricom must reach your backend over **public HTTPS**. Locally run `ngrok http 8000` (or cloudflared) and set
+   `MPESA_CALLBACK_BASE_URL=https://<your-tunnel>.ngrok-free.app`. Add that host to `DJANGO_ALLOWED_HOSTS`.
+4. `python manage.py migrate`, restart, then tick **Online ordering enabled** in Site settings.
+
+### Endpoints
+| Method & path | Purpose |
+|---|---|
+| `POST /api/payments/mpesa/stk-push/` | `{reference, phone, pay_phone?}`: sends the prompt for the order's outstanding balance. `phone` must be the order's phone. Repeating within ~90s returns the same pending prompt instead of charging twice. |
+| `GET /api/payments/mpesa/status/<checkout_request_id>/` | Poll for the result. If the callback is late (>20s) the API asks Daraja directly (STK Query), rate-limited. |
+| `POST /api/payments/mpesa/callback/<MPESA_CALLBACK_SECRET>/` | Safaricom's result. Wrong secret -> 404. Always answers 200 for valid calls so Safaricom does not retry. |
+
+### How it stays safe
+* The amount is always the order's **balance due** computed on the server; the browser never sends an amount.
+* Callbacks are idempotent; a duplicate never double-credits, and a failure result can never undo a success.
+* If money arrived (ResultCode 0) it is **always recorded**, even for an unexpected amount, which is flagged `needs_review`
+  and shown in admin. A late success after we had guessed "timeout" is honoured.
+* Max `MPESA_MAX_ATTEMPTS_PER_ORDER` (5) prompts per order; per-IP throttles on push (10/h) and polling.
+* Request bodies (they contain the passkey) are never logged. Timestamps use East Africa Time.
+* Callback URL secret + HTTPS are required in production (settings refuse to start otherwise).
+
+### Admin
+* **Payments -> M-Pesa transactions**: every attempt, receipt, raw callback, `needs_review` flag; action *Ask M-Pesa for the latest status* for missed callbacks.
+* **Orders**: M-Pesa attempts are listed on each order; action *Send M-Pesa payment prompt* lets staff request payment for phone orders.
+* Cron: `python manage.py mpesa_reconcile` every few minutes settles anything still pending.
+
+### Before going live
+Complete Safaricom's *Go Live* for your shortcode, then set `MPESA_ENV=production` with your production key/secret/shortcode/passkey
+(for a Till use `MPESA_TRANSACTION_TYPE=CustomerBuyGoodsOnline` and `MPESA_PARTY_B=<till>`), keep the callback on HTTPS,
+and make one small real payment (e.g. KSh 10) end to end. Use a shared cache (Redis) in production so throttles and the token cache work across workers.
+
 ## Design notes
 * **Server is the source of truth** for price, size validity, stock and promo rules; client prices are ignored.
 * Checkout runs in one transaction with row locks (`select_for_update`) – no overselling; failures roll back.
@@ -62,6 +102,10 @@ Docker: `cp .env.example .env && docker compose up --build` (Postgres included).
 
 ## Before production
 * Set `DJANGO_SECRET_KEY`, `DJANGO_ALLOWED_HOSTS`, `DATABASE_URL`, SMTP vars, `STORE_NOTIFICATION_EMAILS`.
-* Serve `/media/` via nginx or object storage (e.g. `django-storages` + S3) – Django only serves it in DEBUG.
+* **Image uploads → Cloudinary.** Set `CLOUDINARY_URL` (Cloudinary dashboard → API Keys). With it set, every admin upload
+  (products, categories, banners) is stored on Cloudinary and the API returns `https://res.cloudinary.com/...` URLs.
+  Without it files go to local disk, which Django does not serve when `DEBUG` is off. If you already uploaded images locally,
+  run `python manage.py migrate_media --dry-run` and then `python manage.py migrate_media` once.
+  On the Next.js side set `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME` (the cloud name from the URL).
 * Use a shared cache (Redis) so throttles work across gunicorn workers.
-* Not included (natural next steps): M-Pesa STK-push integration (the `Payment` model is ready for it), customer accounts, SMS notifications.
+* Not included (natural next steps): customer accounts, SMS notifications, refunds/reversals via Daraja.

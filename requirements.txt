@@ -12,3 +12,4 @@ django-cloudinary-storage>=0.3.0
 cloudinary>=1.41
 python-dotenv>=1.1,<2.0
 
+requests>=2.32

@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     "apps.orders",
     "apps.storefront",
     "apps.contact",
+    "apps.payments",
 ]
 
 MIDDLEWARE = [
@@ -158,6 +159,8 @@ REST_FRAMEWORK = {
         "track": _rate("30/hour"),
         "contact": _rate("10/hour"),
         "reviews": _rate("10/hour"),
+        "mpesa_push": _rate("10/hour"),
+        "mpesa_status": _rate("900/hour"),
     },
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"]
     + (["rest_framework.renderers.BrowsableAPIRenderer"] if DEBUG else []),
@@ -186,6 +189,38 @@ if env("EMAIL_HOST"):
     EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", True)
 else:
     EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+
+
+# ---- M-Pesa (Safaricom Daraja, M-Pesa Express / STK push) ---------------
+# Get the key/secret from your Daraja app, the shortcode + passkey from the Express simulator
+# (sandbox shortcode is 174379). The callback URL must be PUBLIC HTTPS: in development expose
+# Django with ngrok / cloudflared and put that URL in MPESA_CALLBACK_BASE_URL.
+MPESA_ENV = env("MPESA_ENV", "sandbox").strip().lower()
+if MPESA_ENV not in {"sandbox", "production"}:
+    raise ImproperlyConfigured("MPESA_ENV must be 'sandbox' or 'production'.")
+MPESA_CONSUMER_KEY = env("MPESA_CONSUMER_KEY")
+MPESA_CONSUMER_SECRET = env("MPESA_CONSUMER_SECRET")
+MPESA_SHORTCODE = env("MPESA_SHORTCODE")
+MPESA_PASSKEY = env("MPESA_PASSKEY")
+# CustomerPayBillOnline (Paybill) or CustomerBuyGoodsOnline (Till). For a Till, PartyB is the till number.
+MPESA_TRANSACTION_TYPE = env("MPESA_TRANSACTION_TYPE", "CustomerPayBillOnline")
+MPESA_PARTY_B = env("MPESA_PARTY_B") or MPESA_SHORTCODE
+MPESA_CALLBACK_BASE_URL = env("MPESA_CALLBACK_BASE_URL").rstrip("/")
+# Random string placed in the callback URL path so only Safaricom (who is given the URL) can call it.
+MPESA_CALLBACK_SECRET = env("MPESA_CALLBACK_SECRET")
+MPESA_BASE_URL = env("MPESA_BASE_URL") or (
+    "https://sandbox.safaricom.co.ke" if MPESA_ENV == "sandbox" else "https://api.safaricom.co.ke"
+)
+MPESA_MAX_ATTEMPTS_PER_ORDER = int(env("MPESA_MAX_ATTEMPTS_PER_ORDER", "5"))
+MPESA_ENABLED = all(
+    [MPESA_CONSUMER_KEY, MPESA_CONSUMER_SECRET, MPESA_SHORTCODE, MPESA_PASSKEY,
+     MPESA_CALLBACK_BASE_URL, MPESA_CALLBACK_SECRET]
+)
+if MPESA_ENABLED and not (DEBUG or TESTING):
+    if not MPESA_CALLBACK_BASE_URL.startswith("https://"):
+        raise ImproperlyConfigured("MPESA_CALLBACK_BASE_URL must be https:// in production.")
+    if len(MPESA_CALLBACK_SECRET) < 24:
+        raise ImproperlyConfigured("MPESA_CALLBACK_SECRET must be at least 24 random characters.")
 
 # ---- Production hardening ---------------------------------------------
 if not (DEBUG or TESTING):

@@ -31,6 +31,7 @@ urlpatterns = [
                 path("", include("apps.storefront.urls")),
                 path("", include("apps.orders.urls")),
                 path("", include("apps.contact.urls")),
+                path("", include("apps.payments.urls")),
                 path("schema/", SpectacularAPIView.as_view(), name="schema"),
                 path("docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="docs"),
             ]

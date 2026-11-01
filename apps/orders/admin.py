@@ -3,6 +3,9 @@ from django.utils.html import format_html
 
 from apps.core.admin_utils import export_as_csv
 
+from apps.payments.models import MpesaTransaction
+from apps.payments.services import PaymentError, initiate_mpesa_payment
+
 from .models import InvalidTransition, Order, OrderItem, OrderStatusHistory, Payment, PromoCode
 
 
@@ -27,6 +30,18 @@ class PaymentInline(admin.TabularInline):
     model = Payment
     extra = 0
     fields = ("method", "status", "amount", "reference", "paid_at")
+
+
+class MpesaInline(admin.TabularInline):
+    model = MpesaTransaction
+    extra = 0
+    can_delete = False
+    fields = ("created_at", "status", "amount", "phone", "mpesa_receipt", "result_desc", "needs_review")
+    readonly_fields = fields
+    show_change_link = True
+
+    def has_add_permission(self, request, obj=None):
+        return False
 
 
 class HistoryInline(admin.TabularInline):
@@ -72,15 +87,27 @@ class OrderAdmin(admin.ModelAdmin):
         ("Fulfilment", {"fields": ("delivery_method", "delivery_address", "notes", "internal_notes")}),
         ("Totals", {"fields": ("promo_code", "promo_code_text", "subtotal", "discount_total", "total")}),
     )
-    inlines = [OrderItemInline, PaymentInline, HistoryInline]
+    inlines = [OrderItemInline, PaymentInline, MpesaInline, HistoryInline]
     actions = [
         _status_action(Order.Status.CONFIRMED, "Mark as confirmed"),
         _status_action(Order.Status.PROCESSING, "Mark as processing"),
         _status_action(Order.Status.READY, "Mark as ready for delivery / collection"),
         _status_action(Order.Status.COMPLETED, "Mark as completed"),
         _status_action(Order.Status.CANCELLED, "Cancel (returns stock)"),
+        "send_mpesa_prompt",
         export_as_csv,
     ]
+
+    @admin.action(description="Send M-Pesa payment prompt to the customer's phone")
+    def send_mpesa_prompt(self, request, queryset):
+        for order in queryset:
+            try:
+                txn, resumed = initiate_mpesa_payment(order)
+            except PaymentError as exc:
+                self.message_user(request, f"{order.reference}: {exc}", messages.WARNING)
+                continue
+            note = "prompt already sent moments ago" if resumed else f"prompt sent to {txn.phone}"
+            self.message_user(request, f"{order.reference}: {note} (KSh {txn.amount:,}).", messages.SUCCESS)
 
     COLORS = {"pending": "#b45309", "confirmed": "#1d4ed8", "processing": "#6d28d9",
               "ready": "#0f766e", "completed": "#15803d", "cancelled": "#b91c1c"}
