@@ -3,8 +3,6 @@ import logging
 from collections import defaultdict
 from dataclasses import dataclass, field
 
-from django.conf import settings
-from django.core.mail import send_mail
 from django.db import transaction
 from django.db.models import F
 
@@ -159,31 +157,7 @@ def create_order(*, customer: dict, items, promo_code="") -> Order:
     if cart.promo:
         PromoCode.objects.filter(pk=cart.promo.pk).update(times_used=F("times_used") + 1)
     OrderStatusHistory.objects.create(order=order, to_status=order.status, note="Order placed online")
-    transaction.on_commit(lambda: notify_new_order(order.pk))
+    from apps.notifications.dispatch import order_placed  # local import: avoids an import cycle
+
+    transaction.on_commit(lambda: order_placed(order.pk))
     return order
-
-
-def notify_new_order(order_id):
-    try:
-        order = Order.objects.prefetch_related("items").get(pk=order_id)
-        lines = "\n".join(
-            f"- {i.quantity} × {i.product_name}{' (' + i.size + ')' if i.size else ''}: KSh {i.line_total:,}"
-            for i in order.items.all()
-        )
-        body = (
-            f"Order {order.reference}\nCustomer: {order.customer_name} ({order.phone})\n"
-            f"{order.get_delivery_method_display()}: {order.delivery_address or '—'}\n\n{lines}\n\n"
-            f"Discount: KSh {order.discount_total:,}\nTotal: KSh {order.total:,}\nNotes: {order.notes or '—'}"
-        )
-        if settings.STORE_NOTIFICATION_EMAILS:
-            send_mail(f"New order {order.reference}", body, settings.DEFAULT_FROM_EMAIL,
-                      settings.STORE_NOTIFICATION_EMAILS, fail_silently=True)
-        if order.email:
-            send_mail(
-                f"We received your Harlem Store order {order.reference}",
-                f"Hi {order.customer_name},\n\nThanks for your order. Our team will contact you to confirm "
-                f"availability, delivery and payment.\n\n{body}",
-                settings.DEFAULT_FROM_EMAIL, [order.email], fail_silently=True,
-            )
-    except Exception:  # never let email problems affect orders
-        logger.exception("Failed to send order notification for %s", order_id)

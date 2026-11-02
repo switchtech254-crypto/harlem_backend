@@ -119,6 +119,10 @@ def _record_success(txn: MpesaTransaction, *, receipt: str, paid: int, paid_at, 
         paid_at=paid_at or timezone.now(),
     )
     txn.payment = payment
+    # Email the customer + owner and ping Telegram once this transaction commits (never twice: deduped).
+    from apps.notifications.dispatch import payment_received  # local import: avoids an import cycle
+
+    transaction.on_commit(lambda pid=payment.pk: payment_received(pid))
     txn.status = MpesaTransaction.Status.SUCCESS
     txn.mpesa_receipt = receipt
     txn.confirmed_via = via

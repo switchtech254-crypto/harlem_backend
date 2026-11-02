@@ -61,18 +61,29 @@ class OrderCreateView(PublicView):
 
 
 class OrderTrackView(PublicView):
+    """Order status for the tracking page. Guessable credential (phone) = strict throttle;
+    unguessable credential (email-link token, used for auto-refresh polling) = generous throttle."""
+
     throttle_classes = [ScopedRateThrottle]
-    throttle_scope = "track"
+
+    def get_throttles(self):
+        data = self.request.data if hasattr(self.request, "data") else {}
+        self.throttle_scope = "track_poll" if (data.get("token") if hasattr(data, "get") else None) else "track"
+        return super().get_throttles()
 
     def post(self, request):
         ser = TrackSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
+        d = ser.validated_data
         order = (
-            Order.objects.filter(reference__iexact=ser.validated_data["reference"].strip(),
-                                 phone=ser.validated_data["phone"])
-            .prefetch_related("items", "history")
+            Order.objects.filter(reference__iexact=d["reference"].strip())
+            .prefetch_related("items", "history", "payments")
             .first()
         )
-        if not order:  # same answer for wrong ref or wrong phone
+        allowed = order and (
+            (d.get("token") and order.tracking_token_matches(d["token"]))
+            or (d.get("phone") and order.phone == d["phone"])
+        )
+        if not allowed:  # same answer for a wrong reference, phone or token
             return Response({"detail": "No order found for those details."}, status=404)
         return Response(OrderPublicSerializer(order).data)

@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     "apps.storefront",
     "apps.contact",
     "apps.payments",
+    "apps.notifications",
 ]
 
 MIDDLEWARE = [
@@ -161,6 +162,7 @@ REST_FRAMEWORK = {
         "reviews": _rate("10/hour"),
         "mpesa_push": _rate("10/hour"),
         "mpesa_status": _rate("900/hour"),
+        "track_poll": _rate("1200/hour"),
     },
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"]
     + (["rest_framework.renderers.BrowsableAPIRenderer"] if DEBUG else []),
@@ -186,10 +188,12 @@ if env("EMAIL_HOST"):
     EMAIL_PORT = int(env("EMAIL_PORT", "587"))
     EMAIL_HOST_USER = env("EMAIL_HOST_USER")
     EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD")
-    EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", True)
+    # Port 587 -> STARTTLS (EMAIL_USE_TLS). Port 465 -> implicit SSL (EMAIL_USE_SSL=true). Never both.
+    EMAIL_USE_SSL = env_bool("EMAIL_USE_SSL", False)
+    EMAIL_USE_TLS = False if EMAIL_USE_SSL else env_bool("EMAIL_USE_TLS", True)
+    EMAIL_TIMEOUT = int(env("EMAIL_TIMEOUT", "20"))  # never hang a worker on a dead mail server
 else:
     EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
-
 
 # ---- M-Pesa (Safaricom Daraja, M-Pesa Express / STK push) ---------------
 # Get the key/secret from your Daraja app, the shortcode + passkey from the Express simulator
@@ -221,6 +225,22 @@ if MPESA_ENABLED and not (DEBUG or TESTING):
         raise ImproperlyConfigured("MPESA_CALLBACK_BASE_URL must be https:// in production.")
     if len(MPESA_CALLBACK_SECRET) < 24:
         raise ImproperlyConfigured("MPESA_CALLBACK_SECRET must be at least 24 random characters.")
+
+# ---- Notifications (email + Telegram) -----------------------------------
+# From address for payment receipts / payment alerts. The SMTP account must be allowed to send as it.
+PAYMENTS_FROM_EMAIL = env("PAYMENTS_FROM_EMAIL", "Harlem Store Payments <payments@harlemstore.co.ke>")
+# Shown to customers as "how to reach us" and used as Reply-To (falls back to Site settings' contact email).
+SUPPORT_EMAIL = env("SUPPORT_EMAIL")
+# Public URL of the Next.js storefront (used for the "Track your order" link in emails).
+FRONTEND_URL = env("FRONTEND_URL", "http://localhost:3000")
+# Public URL of this backend (used for the "Open order in admin" link sent to the owner).
+BACKEND_PUBLIC_URL = env("BACKEND_PUBLIC_URL") or MPESA_CALLBACK_BASE_URL or "http://localhost:8000"
+# Telegram bot: token from @BotFather; chat id(s) of the owner / staff group, comma separated. Blank = off.
+TELEGRAM_BOT_TOKEN = env("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = env("TELEGRAM_CHAT_ID")
+TELEGRAM_API_BASE = env("TELEGRAM_API_BASE", "https://api.telegram.org")
+# Send on a background thread so checkout / Safaricom's callback never wait for SMTP.
+NOTIFICATIONS_ASYNC = env_bool("NOTIFICATIONS_ASYNC", not TESTING)
 
 # ---- Production hardening ---------------------------------------------
 if not (DEBUG or TESTING):

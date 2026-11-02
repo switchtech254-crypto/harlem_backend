@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{% if kind == "payment" %}Payment received{% else %}Order received{% endif %} · {{ reference }}</title></head>
+<body style="margin:0;padding:0;background:#f4efe9;font-family:Arial,Helvetica,sans-serif;color:#2b1a29;">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;">{% if kind == "payment" %}We received your payment of {{ payment_amount }} for order {{ reference }}.{% else %}Your order {{ reference }} is in. Here is what happens next.{% endif %}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4efe9;"><tr><td align="center" style="padding:24px 12px;">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:8px;overflow:hidden;">
+  <tr><td style="background:#431d41;padding:22px 28px;">
+    <div style="font-size:22px;font-weight:bold;letter-spacing:1px;color:#ffffff;">{{ store.name|upper }}</div>
+    <div style="font-size:11px;letter-spacing:3px;color:#e9b949;margin-top:4px;">SPORTS &amp; FASHION</div>
+  </td></tr>
+
+  <tr><td style="padding:28px 28px 8px 28px;">
+    {% if kind == "payment" %}
+      <h1 style="margin:0 0 10px 0;font-size:24px;line-height:1.25;color:#431d41;">Payment received. Thank you, {{ first_name }}!</h1>
+      <p style="margin:0;font-size:15px;line-height:1.6;">We&rsquo;ve received your M-Pesa payment of <strong>{{ payment_amount }}</strong>{% if payment_receipt %} (receipt <strong>{{ payment_receipt }}</strong>){% endif %}. {% if is_paid %}Your order is paid in full and confirmed.{% else %}You still have a balance of <strong>{{ balance }}</strong> on this order.{% endif %}</p>
+    {% else %}
+      <h1 style="margin:0 0 10px 0;font-size:24px;line-height:1.25;color:#431d41;">We&rsquo;ve received your order, {{ first_name }}!</h1>
+      <p style="margin:0;font-size:15px;line-height:1.6;">Thanks for shopping with us. {% if is_paid %}Your order is paid.{% else %}Payment is still outstanding ({{ balance }}). You can pay with M-Pesa, or our team will contact you to arrange it.{% endif %}</p>
+    {% endif %}
+  </td></tr>
+
+  <tr><td style="padding:18px 28px 0 28px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4efe9;border-radius:6px;"><tr><td style="padding:16px 18px;">
+      <div style="font-size:11px;letter-spacing:2px;color:#6b5a69;">YOUR ORDER NUMBER</div>
+      <div style="font-size:26px;font-weight:bold;letter-spacing:1px;color:#431d41;margin-top:2px;">{{ reference }}</div>
+      <div style="font-size:12px;color:#6b5a69;margin-top:4px;">Placed {{ placed_at }}. Please quote this number whenever you contact us.</div>
+    </td></tr></table>
+  </td></tr>
+
+  <tr><td style="padding:22px 28px 0 28px;">
+    <div style="font-size:12px;font-weight:bold;letter-spacing:2px;color:#6b5a69;margin-bottom:8px;">ORDER SUMMARY</div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;">
+      {% for i in items %}
+      <tr>
+        <td style="padding:8px 0;border-bottom:1px solid #eee;vertical-align:top;">
+          <strong>{{ i.name }}</strong>{% if i.size %} <span style="color:#6b5a69;">(size {{ i.size }})</span>{% endif %}
+          <div style="color:#6b5a69;font-size:12px;">{{ i.qty }} &times; {{ i.unit }}{% if i.custom %} &middot; {{ i.custom }}{% endif %}</div>
+        </td>
+        <td align="right" style="padding:8px 0;border-bottom:1px solid #eee;vertical-align:top;white-space:nowrap;">{{ i.total }}</td>
+      </tr>
+      {% endfor %}
+      {% if discount %}<tr><td style="padding:8px 0;color:#2f7d32;">Discount{% if promo %} ({{ promo }}){% endif %}</td><td align="right" style="padding:8px 0;color:#2f7d32;">&minus; {{ discount }}</td></tr>{% endif %}
+      <tr><td style="padding:10px 0;font-weight:bold;">Total</td><td align="right" style="padding:10px 0;font-weight:bold;">{{ total }}</td></tr>
+      <tr><td style="padding:2px 0;color:#6b5a69;">Paid so far</td><td align="right" style="padding:2px 0;color:#6b5a69;">{{ paid }}</td></tr>
+      {% if not is_paid %}<tr><td style="padding:2px 0;color:#b3261e;">Balance due</td><td align="right" style="padding:2px 0;color:#b3261e;">{{ balance }}</td></tr>{% endif %}
+    </table>
+  </td></tr>
+
+  <tr><td style="padding:22px 28px 0 28px;font-size:14px;line-height:1.6;">
+    <div style="font-size:12px;font-weight:bold;letter-spacing:2px;color:#6b5a69;margin-bottom:6px;">{% if is_collection %}COLLECTION{% else %}DELIVERY{% endif %}</div>
+    {% if is_collection %}Our team will let you know when your order is ready to collect{% if store.address %} from <strong>{{ store.address }}</strong>{% endif %}.{% else %}We&rsquo;ll deliver to: <strong>{{ delivery_address }}</strong>. Our team will contact you to confirm the delivery time and cost.{% endif %}
+  </td></tr>
+
+  <tr><td align="center" style="padding:26px 28px 8px 28px;">
+    <a href="{{ tracking_url }}" style="display:inline-block;background:#431d41;color:#ffffff;text-decoration:none;font-weight:bold;font-size:15px;padding:14px 30px;border-radius:4px;">Track your order</a>
+    <div style="font-size:12px;color:#6b5a69;margin-top:10px;">The page updates as your order moves from confirmed to ready.</div>
+  </td></tr>
+
+  <tr><td style="padding:22px 28px 6px 28px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e6dde4;border-radius:6px;"><tr><td style="padding:18px 20px;font-size:14px;line-height:1.65;">
+      <div style="font-size:15px;font-weight:bold;color:#431d41;margin-bottom:6px;">Something not right? We&rsquo;re here to help.</div>
+      If there&rsquo;s a problem with your order or payment, contact us and quote order number <strong>{{ reference }}</strong>{% if payment_receipt %} and your M-Pesa receipt <strong>{{ payment_receipt }}</strong>{% endif %}:
+      <ul style="margin:8px 0 8px 18px;padding:0;">
+        {% if store.email %}<li>Email: <a href="mailto:{{ store.email }}" style="color:#431d41;">{{ store.email }}</a> (you can simply reply to this email)</li>{% endif %}
+        {% if store.phone %}<li>Call: <a href="tel:{{ store.phone }}" style="color:#431d41;">{{ store.phone }}</a></li>{% endif %}
+        {% if store.whatsapp_link %}<li>WhatsApp: <a href="{{ store.whatsapp_link }}" style="color:#431d41;">{{ store.whatsapp }}</a></li>{% endif %}
+        {% if store.hours %}<li>Hours: {{ store.hours }}</li>{% endif %}
+      </ul>
+      Wrong item, wrong size or a delay? Tell us as soon as possible and we&rsquo;ll sort it out. Our <a href="{{ returns_url }}" style="color:#431d41;">returns &amp; exchanges</a> page explains how it works.{% if kind == "payment" %} If you were charged but this email shows the wrong amount, contact us right away with your M-Pesa message.{% endif %}
+    </td></tr></table>
+  </td></tr>
+
+  <tr><td style="padding:20px 28px 28px 28px;font-size:12px;color:#8a7a88;line-height:1.6;">
+    You&rsquo;re receiving this because you placed an order at {{ store.name }}. This is a transactional message about your order.
+  </td></tr>
+</table>
+</td></tr></table>
+</body></html>

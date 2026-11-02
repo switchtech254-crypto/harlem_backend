@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{% if kind == "payment" %}Payment received{% else %}New order{% endif %} · {{ reference }}</title></head>
+<body style="margin:0;padding:0;background:#f4efe9;font-family:Arial,Helvetica,sans-serif;color:#2b1a29;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:20px 12px;">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:8px;overflow:hidden;">
+  <tr><td style="background:{% if kind == "payment" %}#1b6e3a{% else %}#431d41{% endif %};padding:18px 26px;color:#ffffff;">
+    <div style="font-size:12px;letter-spacing:2px;opacity:.85;">{% if kind == "payment" %}PAYMENT RECEIVED{% else %}NEW ORDER{% endif %}</div>
+    <div style="font-size:26px;font-weight:bold;margin-top:2px;">{% if kind == "payment" %}{{ payment_amount }}{% else %}{{ total }}{% endif %}</div>
+    <div style="font-size:14px;margin-top:2px;">Order {{ reference }} &middot; {{ customer_name }}</div>
+  </td></tr>
+
+  {% if needs_review %}<tr><td style="padding:14px 26px 0 26px;"><div style="background:#fff4e5;border:1px solid #f0c36d;color:#7a4b00;padding:10px 14px;border-radius:4px;font-size:13px;"><strong>Please check:</strong> the amount or receipt did not match what was expected. Compare with your M-Pesa statement.</div></td></tr>{% endif %}
+
+  {% if kind == "payment" %}
+  <tr><td style="padding:20px 26px 0 26px;">
+    <div style="font-size:12px;font-weight:bold;letter-spacing:2px;color:#6b5a69;margin-bottom:6px;">PAYMENT</div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;line-height:1.7;">
+      <tr><td style="color:#6b5a69;width:150px;">Amount</td><td><strong>{{ payment_amount }}</strong></td></tr>
+      <tr><td style="color:#6b5a69;">Method</td><td>M-Pesa{% if confirmed_via %} <span style="color:#6b5a69;">(confirmed by {{ confirmed_via }})</span>{% endif %}</td></tr>
+      <tr><td style="color:#6b5a69;">M-Pesa receipt</td><td>{% if payment_receipt %}<strong>{{ payment_receipt }}</strong>{% else %}not provided yet{% endif %}</td></tr>
+      {% if payment_phone %}<tr><td style="color:#6b5a69;">Paid from</td><td>{{ payment_phone }}</td></tr>{% endif %}
+      <tr><td style="color:#6b5a69;">Time</td><td>{{ payment_time }}</td></tr>
+      <tr><td style="color:#6b5a69;">Order payment status</td><td>{{ order.get_payment_status_display }}{% if not is_paid %} (balance {{ balance }}){% endif %}</td></tr>
+    </table>
+  </td></tr>
+  {% endif %}
+
+  <tr><td style="padding:20px 26px 0 26px;">
+    <div style="font-size:12px;font-weight:bold;letter-spacing:2px;color:#6b5a69;margin-bottom:6px;">CUSTOMER</div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;line-height:1.7;">
+      <tr><td style="color:#6b5a69;width:150px;">Name</td><td>{{ customer_name }}</td></tr>
+      <tr><td style="color:#6b5a69;">Phone</td><td><a href="tel:{{ customer_phone }}" style="color:#431d41;">{{ customer_phone }}</a></td></tr>
+      <tr><td style="color:#6b5a69;">Email</td><td>{% if customer_email %}{{ customer_email }}{% else %}not provided{% endif %}</td></tr>
+      <tr><td style="color:#6b5a69;">{{ delivery_method }}</td><td>{% if delivery_address %}{{ delivery_address }}{% else %}Customer collects{% endif %}</td></tr>
+      {% if notes %}<tr><td style="color:#6b5a69;vertical-align:top;">Customer notes</td><td>{{ notes }}</td></tr>{% endif %}
+    </table>
+  </td></tr>
+
+  <tr><td style="padding:20px 26px 0 26px;">
+    <div style="font-size:12px;font-weight:bold;letter-spacing:2px;color:#6b5a69;margin-bottom:6px;">ITEMS</div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;">
+      {% for i in items %}<tr>
+        <td style="padding:7px 0;border-bottom:1px solid #eee;"><strong>{{ i.qty }} &times; {{ i.name }}</strong>{% if i.size %} (size {{ i.size }}){% endif %}{% if i.custom %}<div style="color:#b45309;font-size:12px;">Branding: {{ i.custom }}</div>{% endif %}</td>
+        <td align="right" style="padding:7px 0;border-bottom:1px solid #eee;white-space:nowrap;">{{ i.total }}</td></tr>{% endfor %}
+      {% if discount %}<tr><td style="padding:7px 0;color:#2f7d32;">Discount{% if promo %} ({{ promo }}){% endif %}</td><td align="right" style="color:#2f7d32;">&minus; {{ discount }}</td></tr>{% endif %}
+      <tr><td style="padding:9px 0;font-weight:bold;">Order total</td><td align="right" style="font-weight:bold;">{{ total }}</td></tr>
+      <tr><td style="color:#6b5a69;">Paid so far</td><td align="right" style="color:#6b5a69;">{{ paid }}</td></tr>
+    </table>
+  </td></tr>
+
+  <tr><td align="center" style="padding:24px 26px 26px 26px;">
+    <a href="{{ admin_url }}" style="display:inline-block;background:#431d41;color:#ffffff;text-decoration:none;font-weight:bold;font-size:14px;padding:12px 26px;border-radius:4px;">Open order in admin</a>
+    <div style="font-size:12px;color:#8a7a88;margin-top:12px;">Placed {{ placed_at }} &middot; Automatic notification from {{ store.name }}</div>
+  </td></tr>
+</table>
+</td></tr></table>
+</body></html>

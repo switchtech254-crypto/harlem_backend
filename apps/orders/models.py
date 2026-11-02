@@ -1,3 +1,5 @@
+import hashlib
+import hmac
 import secrets
 
 from django.conf import settings
@@ -140,6 +142,15 @@ class Order(TimeStampedModel):
                 ref = generate_reference()
             self.reference = ref
         super().save(*args, **kwargs)
+
+    # ---- tracking link (sent in emails, so the customer never has to re-enter their phone)
+    @property
+    def tracking_token(self) -> str:
+        """Unguessable, derived from the order reference and SECRET_KEY; nothing extra is stored."""
+        return hmac.new(settings.SECRET_KEY.encode(), f"track:{self.reference}".encode(), hashlib.sha256).hexdigest()[:32]
+
+    def tracking_token_matches(self, token: str) -> bool:
+        return hmac.compare_digest(self.tracking_token, (token or "").strip())
 
     # ---- money
     def recalculate_totals(self):

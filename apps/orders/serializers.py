@@ -53,14 +53,24 @@ class OrderCreateSerializer(CartQuoteSerializer):
 
 
 class TrackSerializer(serializers.Serializer):
+    """Customers prove it is their order with EITHER the phone number used, OR the private token from the email link."""
+
     reference = serializers.CharField(max_length=20)
-    phone = serializers.CharField(max_length=32)
+    phone = serializers.CharField(max_length=32, required=False, allow_blank=True)
+    token = serializers.CharField(max_length=64, required=False, allow_blank=True)
 
     def validate_phone(self, value):
+        if not value:
+            return ""
         try:
             return normalize_phone(value)
         except DjangoValidationError as e:
             raise serializers.ValidationError(e.messages)
+
+    def validate(self, attrs):
+        if not attrs.get("phone") and not attrs.get("token"):
+            raise serializers.ValidationError({"phone": "Enter the phone number you used for the order."})
+        return attrs
 
 
 def serialize_cart(cart, request):
@@ -99,15 +109,28 @@ class OrderPublicSerializer(serializers.ModelSerializer):
 
     status_display = serializers.CharField(source="get_status_display", read_only=True)
     payment_status_display = serializers.CharField(source="get_payment_status_display", read_only=True)
+    delivery_method_display = serializers.CharField(source="get_delivery_method_display", read_only=True)
+    tracking_token = serializers.CharField(read_only=True)
+    amount_paid = serializers.IntegerField(read_only=True)
+    balance_due = serializers.IntegerField(read_only=True)
     items = OrderItemPublicSerializer(many=True, read_only=True)
     timeline = serializers.SerializerMethodField()
+    payments = serializers.SerializerMethodField()
 
     class Meta:
         model = Order
         fields = [
             "reference", "status", "status_display", "payment_status", "payment_status_display",
-            "delivery_method", "subtotal", "discount_total", "total", "created_at", "items", "timeline",
+            "delivery_method", "delivery_method_display", "subtotal", "discount_total", "total",
+            "amount_paid", "balance_due", "created_at", "updated_at", "tracking_token", "items", "timeline", "payments",
         ]
 
     def get_timeline(self, obj):
         return [{"status": h.to_status, "at": h.created_at} for h in obj.history.all()]
+
+    def get_payments(self, obj):
+        return [
+            {"method": p.get_method_display(), "amount": p.amount, "reference": p.reference, "paid_at": p.paid_at}
+            for p in obj.payments.all()
+            if p.status == "confirmed"
+        ]

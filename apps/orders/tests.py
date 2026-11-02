@@ -96,3 +96,50 @@ class OrderApiTests(TestCase):
         order.payments.create(method="cash", amount=6000)
         order.refresh_from_db()
         self.assertEqual(order.payment_status, "paid")
+
+
+class TrackingLinkTests(TestCase):
+    def setUp(self):
+        self.c = APIClient()
+        make_product()
+        s = SiteSettings.get_solo()
+        s.online_ordering_enabled = True
+        s.save()
+        r = self.c.post("/api/orders/", {"customer_name": "Amina", "phone": "0712345678", "delivery_method": "collection",
+                                         "items": [{"id": "court", "size": "42", "qty": 1}]}, format="json")
+        self.ref, self.token = r.data["reference"], r.data["tracking_token"]
+
+    def track(self, **body):
+        return self.c.post("/api/orders/track/", {"reference": self.ref, **body}, format="json")
+
+    def test_order_response_includes_a_private_tracking_token(self):
+        self.assertEqual(len(self.token), 32)
+
+    def test_token_alone_is_enough_so_email_links_need_no_phone(self):
+        r = self.track(token=self.token)
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.data["reference"], self.ref)
+        self.assertEqual(r.data["status"], "pending")
+        self.assertEqual(r.data["delivery_method_display"], "Collection")
+
+    def test_wrong_token_wrong_phone_or_nothing_is_refused(self):
+        self.assertEqual(self.track(token="0" * 32).status_code, 404)
+        self.assertEqual(self.track(phone="0799999999").status_code, 404)
+        self.assertEqual(self.track().status_code, 400)
+
+    def test_another_orders_token_does_not_work(self):
+        other = self.c.post("/api/orders/", {"customer_name": "B", "phone": "0722000111", "delivery_method": "collection",
+                                             "items": [{"id": "court", "size": "41", "qty": 1}]}, format="json")
+        self.assertEqual(self.track(token=other.data["tracking_token"]).status_code, 404)
+
+    def test_phone_still_works_and_progress_shows_up(self):
+        order = Order.objects.get(reference=self.ref)
+        order.change_status("confirmed")
+        order.payments.create(method="mpesa", amount=2000, reference="ABC123")
+        r = self.track(phone="0712 345 678")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual([t["status"] for t in r.data["timeline"]], ["pending", "confirmed"])
+        self.assertEqual((r.data["amount_paid"], r.data["balance_due"]), (2000, 3000))
+        self.assertEqual(r.data["payments"][0]["reference"], "ABC123")
+        self.assertNotIn("phone", r.data)  # no personal data in the public view
+        self.assertNotIn("email", r.data)

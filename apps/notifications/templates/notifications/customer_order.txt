@@ -1,0 +1,38 @@
+{% autoescape off %}{{ store.name|upper }}
+
+{% if kind == "payment" %}PAYMENT RECEIVED. THANK YOU, {{ first_name|upper }}!
+
+We've received your M-Pesa payment of {{ payment_amount }}{% if payment_receipt %} (receipt {{ payment_receipt }}){% endif %}.
+{% if is_paid %}Your order is paid in full and confirmed.{% else %}You still have a balance of {{ balance }} on this order.{% endif %}
+{% else %}WE'VE RECEIVED YOUR ORDER, {{ first_name|upper }}!
+
+{% if is_paid %}Your order is paid.{% else %}Payment is still outstanding ({{ balance }}). You can pay with M-Pesa, or our team will contact you to arrange it.{% endif %}
+{% endif %}
+YOUR ORDER NUMBER: {{ reference }}
+Placed {{ placed_at }}. Please quote this number whenever you contact us.
+
+ORDER SUMMARY
+{% for i in items %}- {{ i.qty }} x {{ i.name }}{% if i.size %} (size {{ i.size }}){% endif %}{% if i.custom %} [{{ i.custom }}]{% endif %}: {{ i.total }}
+{% endfor %}{% if discount %}Discount{% if promo %} ({{ promo }}){% endif %}: -{{ discount }}
+{% endif %}Total: {{ total }}
+Paid so far: {{ paid }}{% if not is_paid %}
+Balance due: {{ balance }}{% endif %}
+
+{% if is_collection %}COLLECTION: we'll let you know when your order is ready to collect{% if store.address %} from {{ store.address }}{% endif %}.{% else %}DELIVERY to: {{ delivery_address }}. Our team will contact you to confirm the delivery time and cost.{% endif %}
+
+TRACK YOUR ORDER (updates as it progresses):
+{{ tracking_url }}
+
+SOMETHING NOT RIGHT? WE'RE HERE TO HELP
+Contact us and quote order number {{ reference }}{% if payment_receipt %} and your M-Pesa receipt {{ payment_receipt }}{% endif %}:
+{% if store.email %}- Email: {{ store.email }} (you can simply reply to this email)
+{% endif %}{% if store.phone %}- Call: {{ store.phone }}
+{% endif %}{% if store.whatsapp_link %}- WhatsApp: {{ store.whatsapp }} ({{ store.whatsapp_link }})
+{% endif %}{% if store.hours %}- Hours: {{ store.hours }}
+{% endif %}
+Wrong item, wrong size or a delay? Tell us as soon as possible and we'll sort it out.
+Returns & exchanges: {{ returns_url }}
+{% if kind == "payment" %}If you were charged but this email shows the wrong amount, contact us right away with your M-Pesa message.
+{% endif %}
+You're receiving this because you placed an order at {{ store.name }}.
+{% endautoescape %}

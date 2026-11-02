@@ -1,0 +1,29 @@
+{% autoescape off %}{% if kind == "payment" %}PAYMENT RECEIVED: {{ payment_amount }}{% else %}NEW ORDER: {{ total }}{% endif %}
+Order {{ reference }} - {{ customer_name }}
+{% if needs_review %}
+!! PLEASE CHECK: the amount or receipt did not match what was expected. Compare with your M-Pesa statement.
+{% endif %}{% if kind == "payment" %}
+PAYMENT
+  Amount:           {{ payment_amount }}
+  Method:           M-Pesa{% if confirmed_via %} (confirmed by {{ confirmed_via }}){% endif %}
+  M-Pesa receipt:   {% if payment_receipt %}{{ payment_receipt }}{% else %}not provided yet{% endif %}
+{% if payment_phone %}  Paid from:        {{ payment_phone }}
+{% endif %}  Time:             {{ payment_time }}
+  Payment status:   {{ order.get_payment_status_display }}{% if not is_paid %} (balance {{ balance }}){% endif %}
+{% endif %}
+CUSTOMER
+  Name:   {{ customer_name }}
+  Phone:  {{ customer_phone }}
+  Email:  {% if customer_email %}{{ customer_email }}{% else %}not provided{% endif %}
+  {{ delivery_method }}: {% if delivery_address %}{{ delivery_address }}{% else %}Customer collects{% endif %}
+{% if notes %}  Notes:  {{ notes }}
+{% endif %}
+ITEMS
+{% for i in items %}  {{ i.qty }} x {{ i.name }}{% if i.size %} (size {{ i.size }}){% endif %}{% if i.custom %} [Branding: {{ i.custom }}]{% endif %} - {{ i.total }}
+{% endfor %}{% if discount %}  Discount{% if promo %} ({{ promo }}){% endif %}: -{{ discount }}
+{% endif %}  Order total: {{ total }}
+  Paid so far: {{ paid }}
+
+Open in admin: {{ admin_url }}
+Placed {{ placed_at }}
+{% endautoescape %}
